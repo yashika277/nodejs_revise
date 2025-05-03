@@ -27,6 +27,9 @@ const movieSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    image:{
+        type:String
+    },
     bookings: [
         {
             userId: {

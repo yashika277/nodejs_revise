@@ -10,6 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(express.json({ extended: false }))
 app.use(cookieParser());
+app.use('/uploads', express.static('uploads'));
 
 app.use("/movie", movieRoute)
 

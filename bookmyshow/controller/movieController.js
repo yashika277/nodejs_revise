@@ -3,7 +3,8 @@ const Role = require("../models/roleModel");
 const User = require("../models/userModel");
 const { encryptData } = require("../utils/encrypt");
 const bcrypt = require("bcrypt")
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
+const sendMail = require("../utils/mail");
 
 const createUser = async (req, res) => {
     try {
@@ -67,39 +68,26 @@ const loginUser = async (req, res) => {
     }
 }
 
-const createMovie = async (req, res) => {
+
+const createRole = async (req, res) => {
     try {
-        const {
-            movieName, description, theaterName, location, releaseDate, language, seatsAvailable
-        } = req.body;
-
-        if (!movieName || !theaterName || !location || !seatsAvailable) {
-            return res.status(400).json({ success: false, message: 'movieName, theaterName, location, and seatsAvailable are required.' });
-        }
-
-        const movieExist = await Movie.findOne({ movieName });
-        if (movieExist) {
-            return res.status(400).json({ success: false, message: "movie already exists" });
-        }
-
-        const newMovie = new Movie({
-            movieName,
-            description,
-            theaterName,
-            location,
-            releaseDate,
-            language,
-            seatsAvailable,
-            createdBy: req.user._id
-        });
-
-        await newMovie.save();
-        res.status(201).json({ success: true, message: "movie created successfully" });
-
+        const { name } = req.body;
+        await Role.create({ name });
+        res.status(200).json({ success: true, message: "role added " });
     } catch (error) {
-        res.status(500).json({ success: false, message: "server error", error: error.message });
+        return res.status(500).json({ success: false, message: "server error" })
+
     }
-};
+}
+
+const getAllRoles = async (req, res) => {
+    try {
+        const role = await Role.find();
+        res.status(200).json({ success: true, role })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "server err" })
+    }
+}
 
 const getAllMovies = async (req, res) => {
     try {
@@ -134,6 +122,7 @@ const getAllMovies = async (req, res) => {
             .skip(skip)
             .limit(limit)
             .populate("createdBy", "email")
+            .select("-isDeleted -createdAt -updatedAt -__v")
 
 
         res.status(200).json({ success: true, totalMovie, movies });
@@ -142,25 +131,6 @@ const getAllMovies = async (req, res) => {
     }
 };
 
-const createRole = async (req, res) => {
-    try {
-        const { name } = req.body;
-        await Role.create({ name });
-        res.status(200).json({ success: true, message: "role added " });
-    } catch (error) {
-        return res.status(500).json({ success: false, message: "server error" })
-    }
-}
-
-const getAllRoles = async (req, res) => {
-    try {
-        const role = await Role.find();
-        res.status(200).json({ success: true, role })
-    } catch (error) {
-        return res.status(500).json({ success: false, message: "server err" })
-    }
-}
-
 const getMovieById = async (req, res) => {
     try {
         const movie = await Movie.findById(req.params.id);
@@ -168,6 +138,41 @@ const getMovieById = async (req, res) => {
             return res.status(404).json({ success: false, message: "Movie not found" });
         }
         res.status(200).json({ success: true, data: movie });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "server error", error: error.message });
+    }
+};
+
+const createMovie = async (req, res) => {
+    try {
+        const {
+            movieName, description, theaterName, location, releaseDate, language, seatsAvailable
+        } = req.body;
+
+        if (!movieName || !theaterName || !location || !seatsAvailable) {
+            return res.status(400).json({ success: false, message: 'movieName, theaterName, location, and seatsAvailable are required.' });
+        }
+
+        const movieExist = await Movie.findOne({ movieName });
+        if (movieExist) {
+            return res.status(400).json({ success: false, message: "movie already exists" });
+        }
+
+        const newMovie = new Movie({
+            movieName,
+            description,
+            theaterName,
+            location,
+            releaseDate,
+            language,
+            seatsAvailable,
+            image: req.file ? req.file.path : '',
+            createdBy: req.user._id
+        });
+
+        await newMovie.save();
+        res.status(201).json({ success: true, message: "movie created successfully" });
+
     } catch (error) {
         res.status(500).json({ success: false, message: "server error", error: error.message });
     }
@@ -216,6 +221,16 @@ const bookTicket = async (req, res) => {
         return res.status(400).json({ message: 'Not enough seats available' });
     }
 
+    const user = await User.findById(userId)
+    console.log(userId);
+
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+    const userEmail = user.email
+    console.log(userEmail);
+
+
     const booking = {
         userId,
         seatsBooked
@@ -224,7 +239,9 @@ const bookTicket = async (req, res) => {
     movie.seatsAvailable -= seatsBooked;
 
     await movie.save()
-    res.status(200).json({ success: true, message: "ticket booked" })
+
+    await sendMail(userEmail, `your ticket for ${movie.movieName} has been booked successfully`)
+    res.status(200).json({ success: true, message: "ticket booked email sent" })
 }
 
 module.exports = { createMovie, getAllMovies, getMovieById, updateMovie, deleteMovie, createUser, createRole, getAllRoles, loginUser, bookTicket }
